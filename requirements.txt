@@ -2,3 +2,4 @@ python-telegram-bot==21.5
 apscheduler==3.10.4
 google-api-python-client
 google-auth
+psycopg2-binary
