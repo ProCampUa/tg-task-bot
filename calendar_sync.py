@@ -35,8 +35,8 @@ def add_event(title, assignee, deadline, time_str=None):
             event = {
                 "summary": title + " (" + assignee + ")",
                 "description": "Vidpovidalnyj: " + assignee,
-                "start": {"dateTime": start, "timeZone": "Europe/Kiev"},
-                "end": {"dateTime": end, "timeZone": "Europe/Kiev"},
+                "start": {"dateTime": start, "timeZone": "Europe/Madrid"},
+                "end": {"dateTime": end, "timeZone": "Europe/Madrid"},
             }
         else:
             event = {
