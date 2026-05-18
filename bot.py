@@ -70,30 +70,49 @@ async def send_tasks_list(chat_id, bot_or_update, is_bot=False):
         else:
             await bot_or_update.message.reply_text(text)
         return
+
+    # Сортуємо по дедлайну
+    active.sort(key=lambda t: t[5] or "9999-99-99")
+
+    # Групуємо по відповідальному
     from collections import defaultdict
     grouped = defaultdict(list)
     for t in active:
         assignee = t[3] or "Без відповідального"
         grouped[assignee].append(t)
 
+    # Одне повідомлення з усіма + кнопки
+    lines = []
+    buttons = []
+
     for assignee, atasks in grouped.items():
-        lines = ["👤 <b>" + assignee + "</b>", ""]
-        buttons = []
+        lines.append("👤 <b>" + assignee + "</b>")
         for t in atasks:
             status = "🔴" if (t[5] and t[5] < today) else "🔵"
             deadline = t[5] or "—"
-            lines.append(status + " " + t[2])
-            lines.append("    📅 " + deadline)
-            lines.append("")
-            buttons.append([InlineKeyboardButton("✅ " + t[2][:30], callback_data="done_" + str(t[0]))])
+            lines.append(status + " " + t[2] + "  📅 " + deadline)
+            buttons.append([InlineKeyboardButton(
+                "✅ " + t[2][:35],
+                callback_data="done_" + str(t[0])
+            )])
+        lines.append("")
 
-        full_text = "\n".join(lines).strip()
-        keyboard = InlineKeyboardMarkup(buttons)
+    full_text = "\n".join(lines).strip()
+    keyboard = InlineKeyboardMarkup(buttons)
 
-        if is_bot:
-            await bot_or_update.send_message(chat_id=chat_id, text=full_text, parse_mode="HTML", reply_markup=keyboard)
-        else:
-            await bot_or_update.message.reply_text(full_text, parse_mode="HTML", reply_markup=keyboard)
+    if is_bot:
+        await bot_or_update.send_message(
+            chat_id=chat_id,
+            text=full_text,
+            parse_mode="HTML",
+            reply_markup=keyboard
+        )
+    else:
+        await bot_or_update.message.reply_text(
+            full_text,
+            parse_mode="HTML",
+            reply_markup=keyboard
+        )
 
 async def button_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
