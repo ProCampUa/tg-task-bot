@@ -101,6 +101,9 @@ async def button_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if data.startswith("done_"):
         task_id = int(data.replace("done_", ""))
         user = query.from_user.first_name or ""
+        tasks = get_tasks(query.message.chat.id)
+        task = next((t for t in tasks if t[0] == task_id), None)
+        task_title = task[2] if task else "Завдання #" + str(task_id)
         await query.answer()
         ok = complete_task(task_id, query.message.chat.id)
         if ok:
@@ -110,7 +113,7 @@ async def button_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             )
             await ctx.bot.send_message(
                 chat_id=query.message.chat.id,
-                text="✅ Завдання <b>#" + str(task_id) + "</b> виконав <b>" + user + "</b>!",
+                text="✅ <b>" + task_title + "</b> виконав <b>" + user + "</b>!",
                 parse_mode="HTML"
             )
 
@@ -119,11 +122,9 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     text = update.message.text
 
-    # Реагуємо тільки на повідомлення з !
     if not text.startswith("!"):
         return
 
-    # Видаляємо ! з початку
     text = text[1:].strip()
 
     sender = update.effective_user.first_name or "Unknown"
@@ -144,7 +145,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         time_part = " о " + time_str if time_str and time_str != "null" else ""
         keyboard = build_task_keyboard(task_id)
         await update.message.reply_text(
-            "<b>Завдання #" + str(task_id) + " створено!</b>\n"
+            "<b>Завдання створено!</b>\n"
             + "📌 " + str(result.get("title","")) + "\n"
             + "👤 Відповідальний: " + str(result.get("assignee","")) + "\n"
             + "<b>Дедлайн: " + str(result.get("deadline","")) + time_part + "</b>",
@@ -189,14 +190,14 @@ async def cmd_done(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("ID має бути числом")
         return
     ok = complete_task(task_id, update.effective_chat.id)
-    await update.message.reply_text("Завдання #" + str(task_id) + " виконано!" if ok else "Завдання не знайдено")
+    await update.message.reply_text("Завдання виконано!" if ok else "Завдання не знайдено")
 
 async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "<b>Task Manager Bot</b>\n\n"
         "Додавай ! перед повідомленням:\n\n"
-        "! Serhii зробити звіт до п'ятниці\n"
-        "! Додай в календар зустріч сьогодні о 15:00\n\n"
+        "<b>! Serhii зробити звіт до п'ятниці</b>\n"
+        "<b>! Додай в календар зустріч сьогодні о 15:00-16:00</b>\n\n"
         "/status — всі активні завдання\n"
         "/done ID — відмітити виконаним\n"
         "/help — допомога",
