@@ -9,12 +9,31 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters, CallbackQueryHandler
 from database import init_db, add_task, complete_task, get_tasks
 from scheduler import setup_scheduler
-from calendar_sync import add_event
+from calendar_sync import add_event, delete_event
 
 TOKEN = os.environ.get("TOKEN", "")
 CLAUDE_KEY = os.environ.get("CLAUDE_KEY", "")
 
 logging.basicConfig(level=logging.INFO)
+
+MONTHS_UA = {
+    "01": "січня", "02": "лютого", "03": "березня",
+    "04": "квітня", "05": "травня", "06": "червня",
+    "07": "липня", "08": "серпня", "09": "вересня",
+    "10": "жовтня", "11": "листопада", "12": "грудня"
+}
+
+def format_date_ua(date_str):
+    if not date_str or date_str == "—":
+        return "—"
+    try:
+        parts = date_str.split("-")
+        day = str(int(parts[2]))
+        month = MONTHS_UA.get(parts[1], parts[1])
+        year = parts[0]
+        return day + " " + month + " " + year
+    except:
+        return date_str
 
 async def ask_claude(text, sender, chat_id):
     today = date.today().isoformat()
@@ -32,8 +51,9 @@ async def ask_claude(text, sender, chat_id):
         "Vidpovid TILKY odnym iz tsikh JSON formativ:\n"
         "1. Yaksho ye zavdannya: {\"type\":\"task\",\"title\":\"shcho zrobyty\",\"assignee\":\"komu\",\"deadline\":\"YYYY-MM-DD\",\"time\":\"HH:MM abo null\"}\n"
         "2. Yaksho dodaty v kalendar: {\"type\":\"calendar\",\"title\":\"nazva\",\"assignee\":\"komu\",\"deadline\":\"YYYY-MM-DD\",\"time\":\"HH:MM\",\"time_end\":\"HH:MM abo null\"}\n"
-        "3. Yaksho pytannya pro zavdannya: {\"type\":\"question\",\"answer\":\"vidpovid ukrainskoyu\"}\n"
-        "4. Inше: {\"type\":\"none\"}\n"
+        "3. Yaksho vydalyty z kalendarya: {\"type\":\"delete_calendar\",\"title\":\"nazva\",\"deadline\":\"YYYY-MM-DD\"}\n"
+        "4. Yaksho pytannya pro zavdannya: {\"type\":\"question\",\"answer\":\"vidpovid ukrainskoyu\"}\n"
+        "5. Inше: {\"type\":\"none\"}\n"
         "TILKY JSON, bez poyasnen!"
     )
     try:
@@ -71,17 +91,14 @@ async def send_tasks_list(chat_id, bot_or_update, is_bot=False):
             await bot_or_update.message.reply_text(text)
         return
 
-    # Сортуємо по дедлайну
     active.sort(key=lambda t: t[5] or "9999-99-99")
 
-    # Групуємо по відповідальному
     from collections import defaultdict
     grouped = defaultdict(list)
     for t in active:
         assignee = t[3] or "Без відповідального"
         grouped[assignee].append(t)
 
-    # Одне повідомлення з усіма + кнопки
     lines = []
     buttons = []
 
@@ -89,7 +106,7 @@ async def send_tasks_list(chat_id, bot_or_update, is_bot=False):
         lines.append("👤 <b>" + assignee + "</b>")
         for t in atasks:
             status = "🔴" if (t[5] and t[5] < today) else "🔵"
-            deadline = t[5] or "—"
+            deadline = format_date_ua(t[5]) if t[5] else "—"
             lines.append(status + " " + t[2] + "  📅 " + deadline)
             buttons.append([InlineKeyboardButton(
                 "✅ " + t[2][:35],
@@ -162,12 +179,13 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
         time_str = result.get("time", "")
         time_part = " о " + time_str if time_str and time_str != "null" else ""
+        deadline_ua = format_date_ua(result.get("deadline", ""))
         keyboard = build_task_keyboard(task_id)
         await update.message.reply_text(
             "<b>Завдання створено!</b>\n"
             + "📌 " + str(result.get("title","")) + "\n"
             + "👤 Відповідальний: " + str(result.get("assignee","")) + "\n"
-            + "<b>Дедлайн: " + str(result.get("deadline","")) + time_part + "</b>",
+            + "<b>Дедлайн: " + deadline_ua + time_part + "</b>",
             parse_mode="HTML",
             reply_markup=keyboard
         )
@@ -184,15 +202,32 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             time_range = str(result.get("time",""))
             if time_end_str and time_end_str != "null":
                 time_range += " - " + time_end_str
+            deadline_ua = format_date_ua(result.get("deadline",""))
             await update.message.reply_text(
                 "📅 <b>Додано в календар!</b>\n"
                 + "📌 " + str(result.get("title","")) + "\n"
-                + "<b>Дата: " + str(result.get("deadline","")) + " о " + time_range + "</b>\n"
+                + "<b>Дата: " + deadline_ua + " о " + time_range + "</b>\n"
                 + "<a href='" + cal_link + "'>Відкрити в Google Calendar</a>",
                 parse_mode="HTML"
             )
         else:
             await update.message.reply_text("Помилка додавання в календар")
+    elif result.get("type") == "delete_calendar":
+        title = result.get("title", "")
+        deadline = result.get("deadline", "")
+        ok = delete_event(title, deadline)
+        if ok:
+            deadline_ua = format_date_ua(deadline)
+            await update.message.reply_text(
+                "🗑 <b>Видалено з календаря!</b>\n"
+                + "📌 " + title + "\n"
+                + "📅 " + deadline_ua,
+                parse_mode="HTML"
+            )
+        else:
+            await update.message.reply_text(
+                "❌ Подію не знайдено в календарі"
+            )
     elif result.get("type") == "question":
         await update.message.reply_text(result.get("answer", ""))
 
@@ -216,7 +251,8 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "<b>Task Manager Bot</b>\n\n"
         "Додавай ! перед повідомленням:\n\n"
         "<b>! Serhii зробити звіт до п'ятниці</b>\n"
-        "<b>! Додай в календар зустріч сьогодні о 15:00-16:00</b>\n\n"
+        "<b>! Додай в календар зустріч сьогодні о 15:00-16:00</b>\n"
+        "<b>! Видали з календаря падл 19 травня</b>\n\n"
         "/status — всі активні завдання\n"
         "/done ID — відмітити виконаним\n"
         "/help — допомога",
