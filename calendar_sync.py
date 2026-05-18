@@ -10,6 +10,8 @@ def get_calendar_service():
     key_json = os.environ.get("GOOGLE_KEY")
     if key_json:
         info = json.loads(key_json)
+        if "private_key" in info:
+            info["private_key"] = info["private_key"].replace("\\n", "\n")
     else:
         with open("calendar_key.json") as f:
             info = json.load(f)
