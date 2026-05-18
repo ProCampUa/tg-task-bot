@@ -30,10 +30,10 @@ async def ask_claude(text, sender, chat_id):
         "Povidomlennya vid " + sender + ": \"" + text + "\"\n"
         "Sogodni: " + today + ", zavtra: " + tomorrow + "\n\n"
         "Vidpovid TILKY odnym iz tsikh JSON formativ:\n"
-        "1. Yaksho ye dorechennya/zavdannya: {\"type\":\"task\",\"title\":\"shcho zrobyty\",\"assignee\":\"komu\",\"deadline\":\"YYYY-MM-DD\",\"time\":\"HH:MM abo null\"}\n"
-        "2. Yaksho prosyt dodaty v kalendar (slova: dodaj v kalendar): {\"type\":\"calendar\",\"title\":\"nazva\",\"assignee\":\"komu\",\"deadline\":\"YYYY-MM-DD\",\"time\":\"HH:MM\"}\n"
+        "1. Yaksho ye zavdannya: {\"type\":\"task\",\"title\":\"shcho zrobyty\",\"assignee\":\"komu\",\"deadline\":\"YYYY-MM-DD\",\"time\":\"HH:MM abo null\"}\n"
+        "2. Yaksho dodaty v kalendar: {\"type\":\"calendar\",\"title\":\"nazva\",\"assignee\":\"komu\",\"deadline\":\"YYYY-MM-DD\",\"time\":\"HH:MM\",\"time_end\":\"HH:MM abo null\"}\n"
         "3. Yaksho pytannya pro zavdannya: {\"type\":\"question\",\"answer\":\"vidpovid ukrainskoyu\"}\n"
-        "4. Yaksho zvychaine povidomlennya: {\"type\":\"none\"}\n"
+        "4. Inше: {\"type\":\"none\"}\n"
         "TILKY JSON, bez poyasnen!"
     )
     try:
@@ -118,6 +118,14 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
     text = update.message.text
+
+    # Реагуємо тільки на повідомлення з !
+    if not text.startswith("!"):
+        return
+
+    # Видаляємо ! з початку
+    text = text[1:].strip()
+
     sender = update.effective_user.first_name or "Unknown"
     chat_id = update.effective_chat.id
     print("Перевірка:", text)
@@ -148,13 +156,18 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             result.get("title",""),
             result.get("assignee", sender),
             result.get("deadline",""),
-            result.get("time","")
+            result.get("time",""),
+            result.get("time_end", None)
         )
         if cal_link:
+            time_end_str = result.get("time_end","")
+            time_range = str(result.get("time",""))
+            if time_end_str and time_end_str != "null":
+                time_range += " - " + time_end_str
             await update.message.reply_text(
                 "📅 <b>Додано в календар!</b>\n"
                 + "📌 " + str(result.get("title","")) + "\n"
-                + "<b>Дата: " + str(result.get("deadline","")) + " о " + str(result.get("time","")) + "</b>\n"
+                + "<b>Дата: " + str(result.get("deadline","")) + " о " + time_range + "</b>\n"
                 + "<a href='" + cal_link + "'>Відкрити в Google Calendar</a>",
                 parse_mode="HTML"
             )
@@ -181,7 +194,9 @@ async def cmd_done(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "<b>Task Manager Bot</b>\n\n"
-        "Просто пишіть у групі — бот розпізнає завдання!\n\n"
+        "Додавай ! перед повідомленням:\n\n"
+        "! Serhii зробити звіт до п'ятниці\n"
+        "! Додай в календар зустріч сьогодні о 15:00\n\n"
         "/status — всі активні завдання\n"
         "/done ID — відмітити виконаним\n"
         "/help — допомога",
