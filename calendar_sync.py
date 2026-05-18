@@ -21,7 +21,7 @@ def get_calendar_service():
     )
     return build("calendar", "v3", credentials=creds)
 
-def add_event(title, assignee, deadline, time_str=None):
+def add_event(title, assignee, deadline, time_str=None, time_end=None):
     if not assignee:
         assignee = "-"
     if not deadline:
@@ -30,8 +30,11 @@ def add_event(title, assignee, deadline, time_str=None):
         service = get_calendar_service()
         if time_str and time_str != "null":
             start = deadline + "T" + time_str + ":00"
-            end_dt = datetime.fromisoformat(start) + timedelta(hours=1)
-            end = end_dt.isoformat()
+            if time_end and time_end != "null":
+                end = deadline + "T" + time_end + ":00"
+            else:
+                end_dt = datetime.fromisoformat(start) + timedelta(hours=1)
+                end = end_dt.isoformat()
             event = {
                 "summary": title + " (" + assignee + ")",
                 "description": "Vidpovidalnyj: " + assignee,
