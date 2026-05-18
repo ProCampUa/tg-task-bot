@@ -48,7 +48,6 @@ def add_event(title, assignee, deadline, time_str=None, time_end=None):
     try:
         service = get_calendar_service()
 
-        # Шукаємо email відповідального
         attendees = []
         email = find_email(assignee)
         if email:
@@ -83,3 +82,33 @@ def add_event(title, assignee, deadline, time_str=None, time_end=None):
     except Exception as e:
         print("Calendar error:", e)
         return None
+
+def delete_event(title, deadline):
+    try:
+        service = get_calendar_service()
+
+        # Шукаємо події на цю дату
+        time_min = deadline + "T00:00:00+02:00"
+        time_max = deadline + "T23:59:59+02:00"
+
+        events = service.events().list(
+            calendarId=CALENDAR_ID,
+            timeMin=time_min,
+            timeMax=time_max,
+            singleEvents=True,
+            orderBy="startTime"
+        ).execute()
+
+        items = events.get("items", [])
+        title_lower = title.lower()
+
+        for event in items:
+            event_title = event.get("summary", "").lower()
+            if title_lower in event_title or any(w in event_title for w in title_lower.split()):
+                service.events().delete(calendarId=CALENDAR_ID, eventId=event["id"]).execute()
+                return True
+
+        return False
+    except Exception as e:
+        print("Delete calendar error:", e)
+        return False
