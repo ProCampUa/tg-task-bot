@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+tasks.db
+.env
+calendar_key.json
+bot.py.save
