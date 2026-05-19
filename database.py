@@ -58,16 +58,32 @@ def complete_task(task_id, chat_id):
     conn.close()
     return rows > 0
 
-def get_completed_count(assignee, chat_id):
+def get_completed_count(assignee, chat_id=None):
     conn = get_conn()
     c = conn.cursor()
+    # Загальна статистика по всіх чатах
     c.execute(
-        "SELECT COUNT(*) FROM tasks WHERE chat_id=%s AND assignee=%s AND status='vypolneno'",
-        (chat_id, assignee)
+        "SELECT COUNT(*) FROM tasks WHERE assignee=%s AND status='vypolneno'",
+        (assignee,)
     )
     count = c.fetchone()[0]
     conn.close()
     return count
+
+def get_top_performers(limit=3):
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("""
+        SELECT assignee, COUNT(*) as total
+        FROM tasks
+        WHERE status='vypolneno' AND assignee IS NOT NULL AND assignee != '-'
+        GROUP BY assignee
+        ORDER BY total DESC
+        LIMIT %s
+    """, (limit,))
+    rows = c.fetchall()
+    conn.close()
+    return rows
 
 def get_tasks(chat_id, user_id=None):
     conn = get_conn()
