@@ -45,6 +45,8 @@ async def ask_claude(text, sender, chat_id):
         tasks_str += "#" + str(t[0]) + " " + str(t[2]) + " -> " + str(t[3] or "-") + " deadline:" + str(t[5] or "-") + " [" + status + "]\n"
 
     prompt = (
+        "Ty - druzhny korporatyvnyy asystent komandi. Spilkuysya teplo, korotko, z emodzhi. "
+        "Koly vidpovidayesh na pytannya - bud pozytyvnym i pidtrymuyuchym.\n\n"
         "Potochni zavdannya grupy:\n" + (tasks_str or "nemae zavdan") + "\n\n"
         "Povidomlennya vid " + sender + ": \"" + text + "\"\n"
         "Sogodni: " + today + ", zavtra: " + tomorrow + "\n\n"
@@ -52,7 +54,7 @@ async def ask_claude(text, sender, chat_id):
         "1. Yaksho ye zavdannya: {\"type\":\"task\",\"title\":\"shcho zrobyty\",\"assignee\":\"komu\",\"deadline\":\"YYYY-MM-DD\",\"time\":\"HH:MM abo null\"}\n"
         "2. Yaksho dodaty v kalendar: {\"type\":\"calendar\",\"title\":\"nazva\",\"assignee\":\"komu\",\"deadline\":\"YYYY-MM-DD\",\"time\":\"HH:MM\",\"time_end\":\"HH:MM abo null\"}\n"
         "3. Yaksho vydalyty z kalendarya: {\"type\":\"delete_calendar\",\"title\":\"nazva\",\"deadline\":\"YYYY-MM-DD\"}\n"
-        "4. Yaksho pytannya pro zavdannya: {\"type\":\"question\",\"answer\":\"vidpovid ukrainskoyu\"}\n"
+        "4. Yaksho pytannya pro zavdannya: {\"type\":\"question\",\"answer\":\"druzhna vidpovid z emodzhi ukrainskoyu\"}\n"
         "5. Inше: {\"type\":\"none\"}\n"
         "TILKY JSON, bez poyasnen!"
     )
@@ -84,7 +86,7 @@ async def send_tasks_list(chat_id, bot_or_update, is_bot=False):
     today = date.today().isoformat()
     active = [t for t in tasks if t[6] != "vypolneno"]
     if not active:
-        text = "Активних завдань немає! 🎉"
+        text = "Активних завдань немає! 🎉 Команда молодці! 💪"
         if is_bot:
             await bot_or_update.send_message(chat_id=chat_id, text=text)
         else:
@@ -99,7 +101,7 @@ async def send_tasks_list(chat_id, bot_or_update, is_bot=False):
         assignee = t[3] or "Без відповідального"
         grouped[assignee].append(t)
 
-    lines = []
+    lines = ["📋 <b>Активні завдання команди:</b>\n"]
     buttons = []
 
     for assignee, atasks in grouped.items():
@@ -144,12 +146,12 @@ async def button_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ok = complete_task(task_id, query.message.chat.id)
         if ok:
             await query.edit_message_text(
-                "✅ <b>Виконано!</b> — " + user + "\n" + query.message.text,
+                "✅ <b>Виконано!</b> — " + user + " 🔥\n" + query.message.text,
                 parse_mode="HTML"
             )
             await ctx.bot.send_message(
                 chat_id=query.message.chat.id,
-                text="✅ <b>" + task_title + "</b> виконав <b>" + user + "</b>!",
+                text="🎉 <b>" + task_title + "</b> виконав <b>" + user + "</b>! Молодець! 💪",
                 parse_mode="HTML"
             )
 
@@ -182,10 +184,11 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         deadline_ua = format_date_ua(result.get("deadline", ""))
         keyboard = build_task_keyboard(task_id)
         await update.message.reply_text(
-            "<b>Завдання створено!</b>\n"
-            + "📌 " + str(result.get("title","")) + "\n"
-            + "👤 Відповідальний: " + str(result.get("assignee","")) + "\n"
-            + "<b>Дедлайн: " + deadline_ua + time_part + "</b>",
+            "📌 <b>Записав!</b>\n\n"
+            + "📝 " + str(result.get("title","")) + "\n"
+            + "👤 " + str(result.get("assignee","")) + "\n"
+            + "📅 " + deadline_ua + time_part + "\n\n"
+            + "Вперед! 💪",
             parse_mode="HTML",
             reply_markup=keyboard
         )
@@ -204,14 +207,14 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 time_range += " - " + time_end_str
             deadline_ua = format_date_ua(result.get("deadline",""))
             await update.message.reply_text(
-                "📅 <b>Додано в календар!</b>\n"
+                "📅 <b>Додав в календар!</b> 🎯\n\n"
                 + "📌 " + str(result.get("title","")) + "\n"
-                + "<b>Дата: " + deadline_ua + " о " + time_range + "</b>\n"
+                + "🗓 " + deadline_ua + " о " + time_range + "\n\n"
                 + "<a href='" + cal_link + "'>Відкрити в Google Calendar</a>",
                 parse_mode="HTML"
             )
         else:
-            await update.message.reply_text("Помилка додавання в календар")
+            await update.message.reply_text("😕 Щось пішло не так з календарем, спробуй ще раз!")
     elif result.get("type") == "delete_calendar":
         title = result.get("title", "")
         deadline = result.get("deadline", "")
@@ -219,15 +222,13 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if ok:
             deadline_ua = format_date_ua(deadline)
             await update.message.reply_text(
-                "🗑 <b>Видалено з календаря!</b>\n"
+                "🗑 <b>Видалив з календаря!</b>\n\n"
                 + "📌 " + title + "\n"
                 + "📅 " + deadline_ua,
                 parse_mode="HTML"
             )
         else:
-            await update.message.reply_text(
-                "❌ Подію не знайдено в календарі"
-            )
+            await update.message.reply_text("🤔 Не знайшов таку подію в календарі!")
     elif result.get("type") == "question":
         await update.message.reply_text(result.get("answer", ""))
 
@@ -236,26 +237,25 @@ async def cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_done(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not ctx.args:
-        await update.message.reply_text("Вкажи ID: /done 5")
+        await update.message.reply_text("Вкажи ID задачі: /done 5 😊")
         return
     try:
         task_id = int(ctx.args[0])
     except ValueError:
-        await update.message.reply_text("ID має бути числом")
+        await update.message.reply_text("ID має бути числом 🔢")
         return
     ok = complete_task(task_id, update.effective_chat.id)
-    await update.message.reply_text("Завдання виконано!" if ok else "Завдання не знайдено")
+    await update.message.reply_text("🎉 Виконано! Молодець!" if ok else "🤔 Не знайшов таке завдання")
 
 async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "<b>Task Manager Bot</b>\n\n"
-        "Додавай ! перед повідомленням:\n\n"
-        "<b>! Serhii зробити звіт до п'ятниці</b>\n"
-        "<b>! Додай в календар зустріч сьогодні о 15:00-16:00</b>\n"
-        "<b>! Видали з календаря падл 19 травня</b>\n\n"
-        "/status — всі активні завдання\n"
-        "/done ID — відмітити виконаним\n"
-        "/help — допомога",
+        "👋 <b>Привіт! Я AI Admin Bot!</b>\n\n"
+        "Пиши <b>!</b> перед повідомленням:\n\n"
+        "📌 <b>! Катя зробити звіт до п'ятниці</b>\n"
+        "📅 <b>! Додай в календар зустріч завтра о 15:00</b>\n"
+        "🗑 <b>! Видали з календаря падл 22 травня</b>\n\n"
+        "/status — всі активні завдання 📋\n"
+        "/help — ця підказка 😊",
         parse_mode="HTML"
     )
 
@@ -272,7 +272,7 @@ async def main():
     async with app:
         loop = asyncio.get_event_loop()
         setup_scheduler(app.bot, loop, send_tasks_list)
-        print("Бот запущено!")
+        print("Бот запущено! 🚀")
         await app.start()
         await app.updater.start_polling()
         await asyncio.Event().wait()
