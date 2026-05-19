@@ -1,6 +1,5 @@
 import os
 import psycopg2
-from psycopg2.extras import RealDictCursor
 from datetime import date, timedelta
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -59,6 +58,17 @@ def complete_task(task_id, chat_id):
     conn.close()
     return rows > 0
 
+def get_completed_count(assignee, chat_id):
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute(
+        "SELECT COUNT(*) FROM tasks WHERE chat_id=%s AND assignee=%s AND status='vypolneno'",
+        (chat_id, assignee)
+    )
+    count = c.fetchone()[0]
+    conn.close()
+    return count
+
 def get_tasks(chat_id, user_id=None):
     conn = get_conn()
     c = conn.cursor()
@@ -100,7 +110,8 @@ def get_report_data(chat_id):
 
 def add_comment(task_id, author, text):
     conn = get_conn()
-    conn.execute(
+    c = conn.cursor()
+    c.execute(
         "INSERT INTO comments (task_id, author, text) VALUES (%s,%s,%s)",
         (task_id, author, text)
     )
