@@ -7,7 +7,7 @@ import re
 from datetime import date, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters, CallbackQueryHandler
-from database import init_db, add_task, complete_task, get_tasks, get_completed_count
+from database import init_db, add_task, complete_task, get_tasks, get_completed_count, get_top_performers
 from scheduler import setup_scheduler
 from calendar_sync import add_event, delete_event
 
@@ -31,6 +31,8 @@ MILESTONES = {
     50: "50 завдань! Неймовірно! 👑",
     100: "100 завдань! Абсолютний чемпіон! 🎖"
 }
+
+MEDALS = ["👑", "🥈", "🥉"]
 
 def format_date_ua(date_str):
     if not date_str or date_str == "—":
@@ -159,7 +161,7 @@ async def button_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 "✅ <b>Виконано!</b> — " + user + " 🔥\n" + query.message.text,
                 parse_mode="HTML"
             )
-            count = get_completed_count(assignee, query.message.chat.id)
+            count = get_completed_count(assignee)
             milestone = MILESTONES.get(count, "")
             milestone_text = "\n🎊 " + milestone if milestone else ""
             await ctx.bot.send_message(
@@ -249,6 +251,20 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await send_tasks_list(update.effective_chat.id, update)
 
+async def cmd_top(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    top = get_top_performers(3)
+    if not top:
+        await update.message.reply_text("🤔 Ще немає виконаних завдань!")
+        return
+    lines = ["🏆 <b>Топ команди по виконаних завданнях:</b>\n"]
+    for i, (assignee, count) in enumerate(top):
+        medal = MEDALS[i] if i < len(MEDALS) else "⭐"
+        lines.append(medal + " <b>" + assignee + "</b> — " + str(count) + " завдань")
+    await update.message.reply_text(
+        "\n".join(lines),
+        parse_mode="HTML"
+    )
+
 async def cmd_done(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not ctx.args:
         await update.message.reply_text("Вкажи ID задачі: /done 5 😊")
@@ -269,6 +285,7 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "📅 <b>! Додай в календар зустріч завтра о 15:00</b>\n"
         "🗑 <b>! Видали з календаря падл 22 травня</b>\n\n"
         "/status — всі активні завдання 📋\n"
+        "/top — топ команди 🏆\n"
         "/help — ця підказка 😊",
         parse_mode="HTML"
     )
@@ -278,6 +295,7 @@ async def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("done", cmd_done))
     app.add_handler(CommandHandler("status", cmd_status))
+    app.add_handler(CommandHandler("top", cmd_top))
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_handler(CommandHandler("start", cmd_help))
     app.add_handler(CallbackQueryHandler(button_callback))
