@@ -7,7 +7,7 @@ import re
 from datetime import date, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters, CallbackQueryHandler
-from database import init_db, add_task, complete_task, get_tasks
+from database import init_db, add_task, complete_task, get_tasks, get_completed_count
 from scheduler import setup_scheduler
 from calendar_sync import add_event, delete_event
 
@@ -21,6 +21,15 @@ MONTHS_UA = {
     "04": "квітня", "05": "травня", "06": "червня",
     "07": "липня", "08": "серпня", "09": "вересня",
     "10": "жовтня", "11": "листопада", "12": "грудня"
+}
+
+MILESTONES = {
+    1: "Перше завдання! 🌟",
+    5: "Вже 5! Так тримати! 🔥",
+    10: "10 завдань! Легенда! 🏆",
+    25: "25! Ти машина! 🚀",
+    50: "50 завдань! Неймовірно! 👑",
+    100: "100 завдань! Абсолютний чемпіон! 🎖"
 }
 
 def format_date_ua(date_str):
@@ -142,6 +151,7 @@ async def button_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         tasks = get_tasks(query.message.chat.id)
         task = next((t for t in tasks if t[0] == task_id), None)
         task_title = task[2] if task else "Завдання #" + str(task_id)
+        assignee = task[3] if task else user
         await query.answer()
         ok = complete_task(task_id, query.message.chat.id)
         if ok:
@@ -149,9 +159,13 @@ async def button_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 "✅ <b>Виконано!</b> — " + user + " 🔥\n" + query.message.text,
                 parse_mode="HTML"
             )
+            count = get_completed_count(assignee, query.message.chat.id)
+            milestone = MILESTONES.get(count, "")
+            milestone_text = "\n🎊 " + milestone if milestone else ""
             await ctx.bot.send_message(
                 chat_id=query.message.chat.id,
-                text="🎉 <b>" + task_title + "</b> виконав <b>" + user + "</b>! Молодець! 💪",
+                text="🎉 <b>" + task_title + "</b> виконав <b>" + user + "</b>! Молодець! 💪\n"
+                + "📊 Це вже <b>" + str(count) + "</b> виконане завдання!" + milestone_text,
                 parse_mode="HTML"
             )
 
